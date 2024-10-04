@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from database import users
 from default_categories import DEFAULT_CATEGORIES
+from utils import filter_by_date, filter_by_amount, build_pipeline
 import uuid
 
 app = Flask(__name__)
@@ -58,31 +59,20 @@ def getExpenses():
     # Date range filtering
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    if start_date or end_date:
-        date_filter = {}
-        if start_date:
-            date_filter['$gte'] = datetime.strptime(start_date, '%Y-%m-%d')
-        if end_date:
-            date_filter['$lte'] = datetime.strptime(end_date, '%Y-%m-%d')
-        match_conditions['expenses.date'] = date_filter
+    if start_date or end_date: match_conditions['expenses.date'] = filter_by_date(start_date, end_date)
     # Amount range filtering
     min_amount = request.args.get('min_amount')
     max_amount = request.args.get('max_amount')
+    if min_amount or max_amount: match_conditions['expenses.amount'] = filter_by_amount(min_amount, max_amount)
+    # Sorting
     sort_by = request.args.get('sort_by','expenses.date')
     order = request.args.get('order', 'asc')
-    expenses = True
     sort_order = 1 if order == 'asc' else -1
-    pipeline = [
-        {'$match': {'username': current_user}},
-        {'$unwind': '$expenses'},
-        {'$match': match_conditions},
-        {'$sort': {sort_by: sort_order}},
-        {'$skip': skip},
-        {'$limit': limit},
-    ]
+    # Querying
+    pipeline = build_pipeline(current_user, "expenses", match_conditions, sort_by, sort_order, skip, limit) 
     results = users.aggregate(pipeline)
+    print(pipeline)
     expenses_list = [result['expenses'] for result in results]
-
     return jsonify({"expenses": expenses_list}),200
 
 @app.route('/expenses', methods=['POST'])
