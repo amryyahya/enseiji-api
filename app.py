@@ -19,14 +19,14 @@ def register():
     if not username or not password:
         return jsonify({"msg": "Username and password are required"}), 400
     for user in allUsers:
-        print(user["username"])
         if user["username"] == username:
             return jsonify({"msg": "username has already exist"}), 400
     user = {
         "username":username,
         "password":password,
         "categories":DEFAULT_CATEGORIES,
-        "expenses":[]
+        "expenses":[],
+        "createdDate": datetime.now().isoformat()
     }
     users.insert_one(user)
     return jsonify({"msg": "User registered successfully"}), 201
@@ -45,20 +45,45 @@ def login():
     access_token = create_access_token(identity=username)
     return jsonify(access_token=access_token), 200
 
-# protected-demo
-@app.route('/protected', methods=['GET'])
-@jwt_required()
-def protected():
-    current_user = get_jwt_identity()
-    return jsonify(logged_in_as=current_user), 2
-
 ################ EXPENSE ROUTE ################################################################
 @app.route('/expenses', methods=['GET'])
 @jwt_required()
-def getAllExpenses():
+def getExpenses():
     current_user = get_jwt_identity()
-    user = users.find_one({"username":current_user})
-    return jsonify({"expenses": user.get("expenses")}),200
+    # Pagination
+    page = int(request.args.get('page',1))
+    limit = int(request.args.get('limit',10))
+    skip = (page - 1) * limit
+    match_conditions = {}
+    # Date range filtering
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    if start_date or end_date:
+        date_filter = {}
+        if start_date:
+            date_filter['$gte'] = datetime.strptime(start_date, '%Y-%m-%d')
+        if end_date:
+            date_filter['$lte'] = datetime.strptime(end_date, '%Y-%m-%d')
+        match_conditions['expenses.date'] = date_filter
+    # Amount range filtering
+    min_amount = request.args.get('min_amount')
+    max_amount = request.args.get('max_amount')
+    sort_by = request.args.get('sort_by','expenses.date')
+    order = request.args.get('order', 'asc')
+    expenses = True
+    sort_order = 1 if order == 'asc' else -1
+    pipeline = [
+        {'$match': {'username': current_user}},
+        {'$unwind': '$expenses'},
+        {'$match': match_conditions},
+        {'$sort': {sort_by: sort_order}},
+        {'$skip': skip},
+        {'$limit': limit},
+    ]
+    results = users.aggregate(pipeline)
+    expenses_list = [result['expenses'] for result in results]
+
+    return jsonify({"expenses": expenses_list}),200
 
 @app.route('/expenses', methods=['POST'])
 @jwt_required()
@@ -68,12 +93,13 @@ def addExpense():
     amount = data.get('amount')
     category = data.get('category')
     description = data.get('description')
+    date = data.get('date',datetime.now().isoformat())
     newExpense = {
         "_id": str(uuid.uuid4()),  
         "amount": amount,
         "category": category,
         "description": description,
-        "date": datetime.now().isoformat()  
+        "date": date 
     }
     users.update_one(
         { "username": current_user },  
@@ -87,12 +113,47 @@ def deleteExpense():
     current_user = get_jwt_identity()
     data = request.get_json()
     expenseId = data.get('_id')
-    print(expenseId)
     users.update_one(
         { "username": current_user},
         { "$pull": { "expenses": { "_id": expenseId}}}
     )
     return jsonify(status="expense record deleted"), 200
+
+################ EXPENSE CATEGORY ROUTE ################################################################
+@app.route('/categories', methods=['GET'])
+@jwt_required()
+def getAllCategories():
+    current_user = get_jwt_identity()
+    user = users.find_one({"username":current_user})
+    return jsonify({"categories": user.get("categories")}),200
+
+@app.route('/categories', methods=['POST'])
+@jwt_required()
+def addCategory():
+    current_user = get_jwt_identity()
+    data = request.get_json()
+    categoryName = data.get('name')
+    newCategory = {
+        "name": categoryName,
+        "date": datetime.now().isoformat()
+    }
+    users.update_one(
+        { "username": current_user },  
+        { "$push": { "categories": newCategory } }
+    )
+    return jsonify(status="new category added"), 200
+
+@app.route('/categories', methods=['DELETE'])
+@jwt_required()
+def deleteCategory():
+    current_user = get_jwt_identity()
+    data = request.get_json()
+    categoryName = data.get('name')
+    users.update_one(
+        { "username": current_user},
+        { "$pull": { "categories": { "name": categoryName}}}
+    )
+    return jsonify(status="a category deleted"), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
