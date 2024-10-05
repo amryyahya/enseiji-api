@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity
 from database import users
 from default_categories import DEFAULT_CATEGORIES
 from utils import filter_by_date, filter_by_amount, build_pipeline
@@ -24,7 +24,7 @@ def register():
             return jsonify({"msg": "username has already exist"}), 400
     user = {
         "username":username,
-        "password":password,
+        "password": generate_password_hash(password),
         "categories":DEFAULT_CATEGORIES,
         "expenses":[],
         "createdDate": datetime.now().isoformat()
@@ -40,11 +40,23 @@ def login():
     if not username or not password:
         return jsonify({"msg": "Username and password are required"}), 400
     user = users.find_one({"username":username})
-    if not user or not password == password:
-        return jsonify({"msg": "Invalid username or password"}), 401
-    # Create a new access token
+    if not user:
+        return jsonify({"msg": "Invalid username"}), 401
+    if not password == password:
+        return jsonify({"msg": "invalid password"}), 401
     access_token = create_access_token(identity=username)
-    return jsonify(access_token=access_token), 200
+    refresh_token = create_refresh_token(identity=username)
+    return jsonify({
+        'access_token':access_token,
+        'refresh_token':refresh_token
+    }), 200
+
+@app.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh():
+    current_user = get_jwt_identity()
+    new_access_token = create_access_token(identity=current_user)
+    return jsonify(access_token=new_access_token), 200
 
 ################ EXPENSE ROUTE ################################################################
 @app.route('/expenses', methods=['GET'])
@@ -64,12 +76,16 @@ def getExpenses():
     min_amount = request.args.get('min_amount')
     max_amount = request.args.get('max_amount')
     if min_amount or max_amount: match_conditions['expenses.amount'] = filter_by_amount(min_amount, max_amount)
+    # Category filtering
+    categories = request.args.getlist('category') 
+    if categories:
+        match_conditions['expenses.category'] = {'$in': categories}
     # Sorting
-    sort_by = request.args.get('sort_by','expenses.date')
-    order = request.args.get('order', 'asc')
+    sort_by = request.args.get('sort_by',"date")
+    order = request.args.get('order', 'desc')
     sort_order = 1 if order == 'asc' else -1
     # Querying
-    pipeline = build_pipeline(current_user, "expenses", match_conditions, sort_by, sort_order, skip, limit) 
+    pipeline = build_pipeline(current_user, "expenses", match_conditions, f"expenses.{sort_by}", sort_order, skip, limit) 
     results = users.aggregate(pipeline)
     print(pipeline)
     expenses_list = [result['expenses'] for result in results]
@@ -109,7 +125,7 @@ def deleteExpense():
     )
     return jsonify(status="expense record deleted"), 200
 
-################ EXPENSE CATEGORY ROUTE ################################################################
+################ CATEGORY ROUTE ################################################################
 @app.route('/categories', methods=['GET'])
 @jwt_required()
 def getAllCategories():

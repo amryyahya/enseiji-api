@@ -1,5 +1,3 @@
-from datetime import datetime
-
 def filter_by_date(start_date, end_date):
     date_filter = {}
     if start_date:
