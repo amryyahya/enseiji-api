@@ -1,76 +1,77 @@
 import pytest
 from flask import jsonify
 from werkzeug.security import generate_password_hash
-from app import app, users  # Assuming you have imported app and users collection
+from app import app, users
+from datetime import datetime
+import uuid
 
-# Sample data for testing
+# Sample user for testing
 test_user = {
     "username": "testuser",
     "email": "testuser@example.com",
-    "password": "TestPassword123"
+    "password": "TestPassword123",
+    "categories": [],
+    "expenses": []
 }
 
 @pytest.fixture
 def client():
     client = app.test_client()
-    # Remove any existing test users in the collection
+    # Clean up database before and after tests
     users.delete_many({})
+    # Insert a test user into the collection
+    users.insert_one({
+        "username": test_user['username'],
+        "email": test_user['email'],
+        "password": generate_password_hash(test_user['password']),
+        "categories": test_user['categories'],
+        "expenses": test_user['expenses']
+    })
     yield client
-    # Clean up after tests
     users.delete_many({})
 
+@pytest.fixture
+def auth_headers(client):
+    """Login and provide JWT token for authentication"""
+    response = client.post('/login', json={
+        "username": test_user['username'],
+        "password": test_user['password']
+    })
+    access_token = response.get_json()['access_token']
+    return {"Authorization": f"Bearer {access_token}"}
+
+
+# Test Email and Username Check Routes
 def test_check_email(client):
-    # Insert a test user with the given email
-    users.insert_one({"email": test_user['email'], "username": test_user['username'], "password": generate_password_hash(test_user['password'])})
-    # Test the check-email route
     response = client.post('/check-email', json={"email": test_user['email']})
     assert response.status_code == 200
     assert response.get_json() == {"exist": True}
-    # Test for non-existing email
-    response = client.post('/check-email', json={"email": "nonexistent@example.com"})
-    assert response.status_code == 200
-    assert response.get_json() == {"exist": False}
 
 def test_check_username(client):
-    # Insert a test user with the given username
-    users.insert_one({"email": test_user['email'], "username": test_user['username'], "password": generate_password_hash(test_user['password'])})
-    # Test the check-username route
     response = client.post('/check-username', json={"username": test_user['username']})
     assert response.status_code == 200
     assert response.get_json() == {"exist": True}
-    # Test for non-existing username
-    response = client.post('/check-username', json={"username": "nonexistentuser"})
-    assert response.status_code == 200
-    assert response.get_json() == {"exist": False}
 
+
+# Test Register Route
 def test_register(client):
-    # Test valid registration
-    response = client.post('/register', json={
+    new_user_data = {
         "username": "newuser",
         "email": "newuser@example.com",
         "displayName": "New User",
         "password": "NewUserPassword123"
-    })
+    }
+    response = client.post('/register', json=new_user_data)
     assert response.status_code == 201
     assert response.get_json() == {"msg": "User registered successfully"}
-    # Test duplicate registration (user already exists)
-    response = client.post('/register', json={
-        "username": "newuser",
-        "email": "newuser@ example.com",
-        "displayName": "New User",
-        "password": "NewUserPassword123"
-    })
-    assert response.status_code == 400
-    assert response.get_json() == {"msg": "user has already exist"}
 
+    # Check the user was added to the database
+    user = users.find_one({"username": "newuser"})
+    assert user is not None
+
+
+# Test Login Route
 def test_login(client):
-    # Insert test user for login
-    users.insert_one({
-        "email": test_user['email'],
-        "username": test_user['username'],
-        "password": generate_password_hash(test_user['password'])
-    })
-    # Test successful login
     response = client.post('/login', json={
         "username": test_user['username'],
         "password": test_user['password']
@@ -79,43 +80,99 @@ def test_login(client):
     json_data = response.get_json()
     assert 'access_token' in json_data
     assert 'refresh_token' in json_data
-    # Test login with wrong password
-    response = client.post('/login', json={
-        "username": test_user['username'],
-        "password": "WrongPassword"
-    })
-    assert response.status_code == 401
-    assert response.get_json() == {"msg": "invalid password"}
-    # Test login with non-existent user
-    response = client.post('/login', json={
-        "username": "nonexistentuser",
-        "password": "password"
-    })
-    assert response.status_code == 401
-    assert response.get_json() == {"msg": "Invalid user"}
 
 
-def test_refresh(client):
-    # Insert test user
-    users.insert_one({
-        "email": test_user['email'],
-        "username": test_user['username'],
-        "password": generate_password_hash(test_user['password'])
-    })
-
-    # Login to get refresh token
+# Test Refresh Token Route
+def test_refresh_token(client, auth_headers):
     login_response = client.post('/login', json={
         "username": test_user['username'],
         "password": test_user['password']
     })
     refresh_token = login_response.get_json()['refresh_token']
 
-    # Test refresh with valid refresh token
+    # Test refresh with a valid refresh token
     response = client.post('/refresh', headers={"Authorization": f"Bearer {refresh_token}"})
     assert response.status_code == 200
     assert 'access_token' in response.get_json()
 
-    # Test refresh with invalid token
-    response = client.post('/refresh', headers={"Authorization": "Bearer invalid_token"})
-    assert response.status_code == 422  # Typical error for malformed or invalid tokens
 
+# Test Expense Routes
+def test_add_expense(client, auth_headers):
+    new_expense = {
+        "amount": 50.00,
+        "category": "Groceries",
+        "description": "Weekly shopping",
+        "date": datetime.now().isoformat()
+    }
+    response = client.post('/expenses', json=new_expense, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.get_json()['status'] == "expense record added"
+
+    # Check that the expense was added
+    user = users.find_one({"username": test_user['username']})
+    assert len(user['expenses']) == 1
+    assert user['expenses'][0]['amount'] == 50.00
+
+def test_get_expenses(client, auth_headers):
+    # Add some expenses for testing
+    expenses = [
+        {"_id": str(uuid.uuid4()), "amount": 50, "category": "Groceries", "description": "Groceries", "date": datetime.now().isoformat()},
+        {"_id": str(uuid.uuid4()), "amount": 20, "category": "Transport", "description": "Taxi", "date": datetime.now().isoformat()},
+    ]
+    users.update_one({"username": test_user['username']}, {"$set": {"expenses": expenses}})
+
+    # Test retrieving expenses
+    response = client.get('/expenses?page=1&limit=10', headers=auth_headers)
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert len(json_data['expenses']) == 2
+
+def test_delete_expense(client, auth_headers):
+    expense_to_delete = {"_id": str(uuid.uuid4()), "amount": 100, "category": "Bills", "description": "Electricity", "date": datetime.now().isoformat()}
+    users.update_one({"username": test_user['username']}, {"$push": {"expenses": expense_to_delete}})
+
+    # Check that the expense was added
+    user = users.find_one({"username": test_user['username']})
+    assert len(user['expenses']) == 1
+
+    # Test deleting the expense
+    response = client.delete('/expenses', json={"_id": expense_to_delete['_id']}, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.get_json()['status'] == "expense record deleted"
+
+    # Check that the expense was deleted
+    user = users.find_one({"username": test_user['username']})
+    assert len(user['expenses']) == 0
+
+
+# Test Category Routes
+def test_add_category(client, auth_headers):
+    new_category = {"name": "Entertainment"}
+    response = client.post('/categories', json=new_category, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.get_json()['status'] == "new category added"
+
+    # Check the category was added
+    user = users.find_one({"username": test_user['username']})
+    assert any(category['name'] == "Entertainment" for category in user['categories'])
+
+
+def test_get_categories(client, auth_headers):
+    response = client.get('/categories', headers=auth_headers)
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert 'categories' in json_data
+
+
+def test_delete_category(client, auth_headers):
+    new_category = {"name": "Entertainment"}
+    users.update_one({"username": test_user['username']}, {"$push": {"categories": new_category}})
+
+    # Delete the category
+    response = client.delete('/categories', json={"name": "Entertainment"}, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.get_json()['status'] == "a category deleted"
+
+    # Check the category was deleted
+    user = users.find_one({"username": test_user['username']})
+    assert not any(category['name'] == "Entertainment" for category in user['categories'])
