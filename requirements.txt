@@ -1,3 +1,5 @@
 flask
 flask-JWT-Extended
-pymongo
+flask_pymongo
+pytest
+pytest-flask

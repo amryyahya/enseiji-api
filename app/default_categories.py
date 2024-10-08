@@ -1,4 +1,3 @@
-# default_categories.py
 DEFAULT_CATEGORIES = [
     { "name": "Food & Dining", "is_default": True },
     { "name": "Transportation", "is_default": True },

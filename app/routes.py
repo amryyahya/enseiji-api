@@ -1,32 +1,52 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity
-from database import users
-from default_categories import DEFAULT_CATEGORIES
-from utils import filter_by_date, filter_by_amount, build_pipeline
+from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
+from app import app, users
+from app.utils import filter_by_date, filter_by_amount, build_pipeline
+from app.default_categories import DEFAULT_CATEGORIES
 import uuid
 
-app = Flask(__name__)
-app.config['JWT_SECRET_KEY'] = 'your-secret-key'
-jwt = JWTManager(app)
-allUsers = users.find()
+@app.route('/check-email', methods=['POST'])
+def checkEmail():
+    try:
+        email = request.get_json().get('email')
+        if users.count_documents({"email": email}) > 0:
+            return jsonify({"exist": True}), 200
+        return jsonify({"exist": False}), 200
+    except Exception as e:
+        print(str(e))
+    
+@app.route('/check-username', methods=['POST'])
+def checkUsername():
+    try:
+        username = request.get_json().get('username')
+        if users.count_documents({"username": username}) > 0:
+            return jsonify({"exist": True}), 200
+        return jsonify({"exist": False}), 200
+    except Exception as e:
+        print(str(e))
 
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
     username = data.get('username')
+    email = data.get('email')
+    displayName = data.get('displayName')
     password = data.get('password')
-    if not username or not password:
-        return jsonify({"msg": "Username and password are required"}), 400
-    for user in allUsers:
-        if user["username"] == username:
-            return jsonify({"msg": "username has already exist"}), 400
+    if not (username or email) or not password:
+        return jsonify({"msg": "Username/Email and password are required"}), 400
+    userExist = users.count_documents({"username": username} if username else {"email": email}) > 0
+    if userExist:
+        return jsonify({"msg": "user has already exist"}), 400
     user = {
         "username":username,
+        "email":email,
+        "displayName": displayName,
         "password": generate_password_hash(password),
         "categories":DEFAULT_CATEGORIES,
         "expenses":[],
+        "blockedToken":[],
         "createdDate": datetime.now().isoformat()
     }
     users.insert_one(user)
@@ -36,13 +56,17 @@ def register():
 def login():
     data = request.get_json()
     username = data.get('username')
+    email = data.get('email')
     password = data.get('password')
-    if not username or not password:
-        return jsonify({"msg": "Username and password are required"}), 400
-    user = users.find_one({"username":username})
+    if not (username or email) or not password:
+        return jsonify({"msg": "Username/email and password are required"}), 400
+    user = users.find_one(
+        {"username": username} if username else {"email": email},
+        {"_id": 0, "password": 1}
+    )
     if not user:
-        return jsonify({"msg": "Invalid username"}), 401
-    if not password == password:
+        return jsonify({"msg": "Invalid user"}), 401
+    if not check_password_hash(user["password"],password):
         return jsonify({"msg": "invalid password"}), 401
     access_token = create_access_token(identity=username)
     refresh_token = create_refresh_token(identity=username)
@@ -160,6 +184,3 @@ def deleteCategory():
         { "$pull": { "categories": { "name": categoryName}}}
     )
     return jsonify(status="a category deleted"), 200
-
-if __name__ == '__main__':
-    app.run(debug=True)
