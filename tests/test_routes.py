@@ -118,3 +118,4 @@ def test_refresh(client):
     # Test refresh with invalid token
     response = client.post('/refresh', headers={"Authorization": "Bearer invalid_token"})
     assert response.status_code == 422  # Typical error for malformed or invalid tokens
+

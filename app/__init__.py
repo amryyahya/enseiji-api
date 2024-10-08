@@ -11,7 +11,7 @@ env = os.getenv("FLASK_ENV")
 mongo_uri = os.getenv("MONGO_URI")
 app.config["MONGO_URI"] = mongo_uri if env == 'PRODUCTION' else mongo_uri + "-test"
 print(app.config["MONGO_URI"])
-app.config['JWT_SECRET_KEY'] = 'your-secret-key'
+app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY")
 jwt = JWTManager(app)
 mongo = PyMongo(app)
 users = mongo.db.users 
