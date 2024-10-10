@@ -148,15 +148,23 @@ This project is a simple **Expense Tracker API** built with **Flask**. It suppor
     {
       "amount": 100,
       "category": "Food",
-      "description": "Grocery Shopping",
-      "date": "2023-01-01T12:00:00"
+      "description": "Housing & Utilities",
+      "date": "2024-01-01T12:00:00"
     }
     ```
   - Requires: Access Token
   - Response:
     ```json
     {
-      "status": "expense record added"
+      "expenses": [
+        {
+          "_id": "a63bea9f-e93a-4e7b-be03-c5ad922deacd",
+          "amount": 100,
+          "category": "Food",
+          "date": "2024-01-01T12:00:00",
+          "description": "Housing & Utilities"
+        }
+      ]
     }
     ```
 
