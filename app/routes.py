@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
 from app import app, users
 from app.utils import filter_by_date, filter_by_amount, build_pipeline
 from app.default_categories import DEFAULT_CATEGORIES
@@ -46,7 +46,7 @@ def register():
         "password": generate_password_hash(password),
         "categories":DEFAULT_CATEGORIES,
         "expenses":[],
-        "blockedToken":[],
+        "blockedTokens":[],
         "createdDate": datetime.now().isoformat()
     }
     users.insert_one(user)
@@ -81,6 +81,28 @@ def refresh():
     current_user = get_jwt_identity()
     new_access_token = create_access_token(identity=current_user)
     return jsonify(access_token=new_access_token), 200
+
+@app.route('/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    access_jti = get_jwt()['jti']
+    current_user = get_jwt_identity()
+    users.update_one(
+        {"username": current_user},
+        {"$push": {"blockedTokens": access_jti}}
+    )
+    return jsonify(msg=f"Refresh token for user {current_user} has been successfully revoked."), 200
+
+@app.route('/logout/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def logout_refresh():
+    refresh_jti = get_jwt()['jti'] 
+    current_user = get_jwt_identity()
+    users.update_one(
+        {"username": current_user},
+        {"$push": {"blockedTokens": refresh_jti}}
+    )
+    return jsonify(msg=f"Refresh token for user {current_user} has been successfully revoked."), 200
 
 ################ EXPENSE ROUTE ################################################################
 @app.route('/expenses', methods=['GET'])
