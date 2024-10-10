@@ -120,6 +120,14 @@ This project is a simple **Expense Tracker API** built with **Flask**. It suppor
       "msg": "Token revoked"
     }
     ```
+  **POST** `/logout/refresh`
+  - Requires: Refresh Token
+  - Response:
+    ```json
+    {
+      "msg": "Token revoked"
+    }
+    ```
 
 ### Expense Endpoints
 
@@ -147,8 +155,8 @@ This project is a simple **Expense Tracker API** built with **Flask**. It suppor
     ```json
     {
       "amount": 100,
-      "category": "Food",
-      "description": "Housing & Utilities",
+      "category": "Food & Dining",
+      "description": "Eating Meatball and Ice Tea",
       "date": "2024-01-01T12:00:00"
     }
     ```
@@ -160,7 +168,7 @@ This project is a simple **Expense Tracker API** built with **Flask**. It suppor
         {
           "_id": "a63bea9f-e93a-4e7b-be03-c5ad922deacd",
           "amount": 100,
-          "category": "Food",
+          "category": "Food & Dining",
           "date": "2024-01-01T12:00:00",
           "description": "Housing & Utilities"
         }
@@ -186,16 +194,6 @@ This project is a simple **Expense Tracker API** built with **Flask**. It suppor
 
 ### Category Endpoints
 
-- **Get All Categories**  
-  **GET** `/categories`
-  - Requires: Access Token
-  - Response:
-    ```json
-    {
-      "categories": []
-    }
-    ```
-
 - **Add Category**  
   **POST** `/categories`
   - Request Body:
@@ -209,6 +207,61 @@ This project is a simple **Expense Tracker API** built with **Flask**. It suppor
     ```json
     {
       "status": "new category added"
+    }
+    ```
+
+- **Get All Categories**  
+  **GET** `/categories`
+  - Requires: Access Token
+  - Response:
+    ```json
+    {
+      "categories": [
+        {
+          "is_default": true,
+          "name": "Food & Dining"
+        },
+        {
+          "is_default": true,
+          "name": "Transportation"
+        },
+        {
+          "is_default": true,
+          "name": "Housing & Utilities"
+        },
+        {
+          "is_default": true,
+          "name": "Healthcare"
+        },
+        {
+          "is_default": true,
+          "name": "Entertainment & Leisure"
+        },
+        {
+          "is_default": true,
+          "name": "Shopping"
+        },
+        {
+          "is_default": true,
+          "name": "Education"
+        },
+        {
+          "is_default": true,
+          "name": "Insurance"
+        },
+        {
+          "is_default": true,
+          "name": "Financial Expenses"
+        },
+        {
+          "is_default": true,
+          "name": "Miscellaneous"
+        },
+        {
+          "date": "2024-10-10T01:20:52.662134",
+          "name": "New Category"
+        }
+      ]
     }
     ```
 
