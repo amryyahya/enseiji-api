@@ -1,3 +1,5 @@
+from app import users
+
 def filter_by_date(start_date, end_date):
     date_filter = {}
     if start_date:
@@ -24,3 +26,10 @@ def build_pipeline(user, unwind, match_conditions, sort_by, sort_order, skip, li
         {'$limit': limit},
     ]
     return pipeline
+
+def verify_token(current_user, token):  
+    user_data = users.find_one(
+        {"username": current_user},
+        {"blockedTokens": 1, "categories": 1}
+    )
+    return False if token in user_data.get('blockedTokens', []) else True

@@ -3,7 +3,7 @@ from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
 from app import app, users
-from app.utils import filter_by_date, filter_by_amount, build_pipeline
+from app.utils import filter_by_date, filter_by_amount, build_pipeline, verify_token
 from app.default_categories import DEFAULT_CATEGORIES
 import uuid
 
@@ -79,14 +79,19 @@ def login():
 @jwt_required(refresh=True)
 def refresh():
     current_user = get_jwt_identity()
+    refresh_jti = get_jwt()['jti'] 
+    if not verify_token(current_user, refresh_jti):
+        return jsonify({"msg": "Token has been revoked"}), 401
     new_access_token = create_access_token(identity=current_user)
     return jsonify(access_token=new_access_token), 200
 
 @app.route('/logout', methods=['POST'])
 @jwt_required()
 def logout():
-    access_jti = get_jwt()['jti']
     current_user = get_jwt_identity()
+    access_jti = get_jwt()['jti']
+    if not verify_token(current_user, access_jti):
+        return jsonify({"msg": "Token has been revoked"}), 401
     users.update_one(
         {"username": current_user},
         {"$push": {"blockedTokens": access_jti}}
@@ -96,8 +101,10 @@ def logout():
 @app.route('/logout/refresh', methods=['POST'])
 @jwt_required(refresh=True)
 def logout_refresh():
-    refresh_jti = get_jwt()['jti'] 
     current_user = get_jwt_identity()
+    refresh_jti = get_jwt()['jti']
+    if not verify_token(current_user, refresh):
+        return jsonify({"msg": "Token has been revoked"}), 401
     users.update_one(
         {"username": current_user},
         {"$push": {"blockedTokens": refresh_jti}}
@@ -109,6 +116,9 @@ def logout_refresh():
 @jwt_required()
 def getExpenses():
     current_user = get_jwt_identity()
+    access_jti = get_jwt()['jti']  
+    if not verify_token(current_user, access_jti):
+        return jsonify({"msg": "Token has been revoked"}), 401
     # Pagination
     page = int(request.args.get('page',1))
     limit = int(request.args.get('limit',10))
@@ -141,6 +151,9 @@ def getExpenses():
 @jwt_required()
 def addExpense():
     current_user = get_jwt_identity()
+    access_jti = get_jwt()['jti']  
+    if not verify_token(current_user, access_jti):
+        return jsonify({"msg": "Token has been revoked"}), 401
     data = request.get_json()
     amount = data.get('amount')
     category = data.get('category')
@@ -163,6 +176,9 @@ def addExpense():
 @jwt_required()
 def deleteExpense():
     current_user = get_jwt_identity()
+    access_jti = get_jwt()['jti']  
+    if not verify_token(current_user, access_jti):
+        return jsonify({"msg": "Token has been revoked"}), 401
     data = request.get_json()
     expenseId = data.get('_id')
     users.update_one(
@@ -176,13 +192,22 @@ def deleteExpense():
 @jwt_required()
 def getAllCategories():
     current_user = get_jwt_identity()
-    user = users.find_one({"username":current_user})
-    return jsonify({"categories": user.get("categories")}),200
+    access_jti = get_jwt()['jti']  
+    if not verify_token(current_user, access_jti):
+        return jsonify({"msg": "Token has been revoked"}), 401
+    user_data = users.find_one(
+        {"username": current_user},
+        {"categories": 1}
+    )
+    return jsonify({"categories": user_data.get("categories")}), 200
 
 @app.route('/categories', methods=['POST'])
 @jwt_required()
 def addCategory():
     current_user = get_jwt_identity()
+    access_jti = get_jwt()['jti']  
+    if not verify_token(current_user, access_jti):
+        return jsonify({"msg": "Token has been revoked"}), 401
     data = request.get_json()
     categoryName = data.get('name')
     newCategory = {
@@ -199,6 +224,9 @@ def addCategory():
 @jwt_required()
 def deleteCategory():
     current_user = get_jwt_identity()
+    access_jti = get_jwt()['jti']  
+    if not verify_token(current_user, access_jti):
+        return jsonify({"msg": "Token has been revoked"}), 401
     data = request.get_json()
     categoryName = data.get('name')
     users.update_one(
