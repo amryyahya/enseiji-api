@@ -96,7 +96,7 @@ def logout():
         {"username": current_user},
         {"$push": {"blockedTokens": access_jti}}
     )
-    return jsonify(msg=f"Refresh token for user {current_user} has been successfully revoked."), 200
+    return jsonify(msg=f"Refresh token for user {current_user} has been successfully revoked"), 200
 
 @app.route('/logout/refresh', methods=['POST'])
 @jwt_required(refresh=True)
@@ -109,7 +109,7 @@ def logout_refresh():
         {"username": current_user},
         {"$push": {"blockedTokens": refresh_jti}}
     )
-    return jsonify(msg=f"Refresh token for user {current_user} has been successfully revoked."), 200
+    return jsonify(msg=f"Refresh token for user {current_user} has been successfully revoked"), 200
 
 ################ EXPENSE ROUTE ################################################################
 @app.route('/expenses', methods=['GET'])

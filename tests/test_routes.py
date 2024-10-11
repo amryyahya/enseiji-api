@@ -1,8 +1,8 @@
 import pytest
-from flask import jsonify
-from werkzeug.security import generate_password_hash
-from app import app, users
 from datetime import datetime
+from werkzeug.security import generate_password_hash
+from flask import jsonify
+from app import app, users
 import uuid
 
 # Sample user for testing
@@ -40,6 +40,15 @@ def auth_headers(client):
     access_token = response.get_json()['access_token']
     return {"Authorization": f"Bearer {access_token}"}
 
+@pytest.fixture
+def refresh_token_headers(client):
+    """Provide refresh token for testing"""
+    response = client.post('/login', json={
+        "username": test_user['username'],
+        "password": test_user['password']
+    })
+    refresh_token = response.get_json()['refresh_token']
+    return {"Authorization": f"Bearer {refresh_token}"}
 
 # Test Email and Username Check Routes
 def test_check_email(client):
@@ -51,7 +60,6 @@ def test_check_username(client):
     response = client.post('/check-username', json={"username": test_user['username']})
     assert response.status_code == 200
     assert response.get_json() == {"exist": True}
-
 
 # Test Register Route
 def test_register(client):
@@ -69,7 +77,6 @@ def test_register(client):
     user = users.find_one({"username": "newuser"})
     assert user is not None
 
-
 # Test Login Route
 def test_login(client):
     response = client.post('/login', json={
@@ -81,20 +88,22 @@ def test_login(client):
     assert 'access_token' in json_data
     assert 'refresh_token' in json_data
 
-
 # Test Refresh Token Route
-def test_refresh_token(client, auth_headers):
-    login_response = client.post('/login', json={
-        "username": test_user['username'],
-        "password": test_user['password']
-    })
-    refresh_token = login_response.get_json()['refresh_token']
-
-    # Test refresh with a valid refresh token
-    response = client.post('/refresh', headers={"Authorization": f"Bearer {refresh_token}"})
+def test_refresh_token(client, refresh_token_headers):
+    response = client.post('/refresh', headers=refresh_token_headers)
     assert response.status_code == 200
     assert 'access_token' in response.get_json()
 
+# Test Logout Route
+def test_logout(client, auth_headers):
+    response = client.post('/logout', headers=auth_headers)
+    assert response.status_code == 200
+    assert response.get_json()['msg'] == f"Refresh token for user {test_user['username']} has been successfully revoked"
+
+    # Test that the token is invalid after logout
+    response = client.get('/expenses', headers=auth_headers)
+    assert response.status_code == 401
+    assert response.get_json()['msg'] == "Token has been revoked"
 
 # Test Expense Routes
 def test_add_expense(client, auth_headers):
@@ -144,7 +153,6 @@ def test_delete_expense(client, auth_headers):
     user = users.find_one({"username": test_user['username']})
     assert len(user['expenses']) == 0
 
-
 # Test Category Routes
 def test_add_category(client, auth_headers):
     new_category = {"name": "Entertainment"}
@@ -156,13 +164,11 @@ def test_add_category(client, auth_headers):
     user = users.find_one({"username": test_user['username']})
     assert any(category['name'] == "Entertainment" for category in user['categories'])
 
-
 def test_get_categories(client, auth_headers):
     response = client.get('/categories', headers=auth_headers)
     assert response.status_code == 200
     json_data = response.get_json()
     assert 'categories' in json_data
-
 
 def test_delete_category(client, auth_headers):
     new_category = {"name": "Entertainment"}
