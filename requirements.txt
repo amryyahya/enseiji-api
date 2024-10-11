@@ -3,3 +3,4 @@ flask-JWT-Extended
 flask_pymongo
 pytest
 pytest-flask
+python-dotenv
