@@ -18,7 +18,7 @@ def filter_by_amount(min_amount, max_amount):
 
 def build_pipeline(user, unwind, match_conditions, sort_by, sort_order, skip, limit):
     pipeline = [
-        {'$match': {'username': user}},
+        {'$match': {'_id': user}},
         {'$unwind':f'${unwind}'},
         {'$match': match_conditions},
         {'$sort': {sort_by: sort_order}},
@@ -29,7 +29,7 @@ def build_pipeline(user, unwind, match_conditions, sort_by, sort_order, skip, li
 
 def verify_token(current_user, token):  
     user_data = users.find_one(
-        {"username": current_user},
+        {"_id": current_user},
         {"blockedTokens": 1, "categories": 1}
     )
     return False if token in user_data.get('blockedTokens', []) else True

@@ -1,11 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
 from app import app, users
 from app.utils import filter_by_date, filter_by_amount, build_pipeline, verify_token
 from app.default_categories import DEFAULT_CATEGORIES
-import uuid
+import uuid, os, requests, random, string
 
 @app.route('/check-email', methods=['POST'])
 def checkEmail():
@@ -62,18 +62,90 @@ def login():
         return jsonify({"msg": "Username/email and password are required"}), 400
     user = users.find_one(
         {"username": username} if username else {"email": email},
-        {"_id": 0, "password": 1}
+        {"_id": 1, "password": 1}
     )
     if not user:
         return jsonify({"msg": "Invalid user"}), 401
     if not check_password_hash(user["password"],password):
         return jsonify({"msg": "invalid password"}), 401
-    access_token = create_access_token(identity=username)
-    refresh_token = create_refresh_token(identity=username)
+    access_token = create_access_token(identity=user["_id"])
+    refresh_token = create_refresh_token(identity=user["_id"])
     return jsonify({
         'access_token':access_token,
         'refresh_token':refresh_token
     }), 200
+
+@app.route('/auth/google')
+def googleOauth():
+    CLIENT_ID = os.getenv("CLIENT_ID")
+    CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+    REDIRECT_URI = os.getenv("REDIRECT_URI")
+    AUTH_URL = "https://accounts.google.com/o/oauth2/auth"
+    TOKEN_URL = "https://oauth2.googleapis.com/token"
+    USER_INFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
+    google_auth_url = (
+        f"{AUTH_URL}?client_id={CLIENT_ID}"
+        f"&redirect_uri={REDIRECT_URI}"
+        f"&response_type=code"
+        f"&scope=email%20profile"
+    )
+    return redirect(google_auth_url)
+
+@app.route('/auth/callback')
+def googleOauthCallback():
+    CLIENT_ID = os.getenv("CLIENT_ID")
+    CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+    REDIRECT_URI = os.getenv("REDIRECT_URI")
+    AUTH_URL = "https://accounts.google.com/o/oauth2/auth"
+    TOKEN_URL = "https://oauth2.googleapis.com/token"
+    USER_INFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
+    code = request.args.get('code')
+    token_data = {
+        'code': code,
+        'client_id': CLIENT_ID,
+        'client_secret': CLIENT_SECRET,
+        'redirect_uri': REDIRECT_URI,
+        'grant_type': 'authorization_code',
+    }
+
+    token_response = requests.post(TOKEN_URL, data=token_data)
+    token_json = token_response.json()
+    access_token = token_json.get('access_token')
+    user_info_response = requests.get(
+        USER_INFO_URL, headers={'Authorization': f'Bearer {access_token}'}
+    )
+    user_info = user_info_response.json()
+    username = user_info['email']
+    email = user_info['email']
+    displayName = user_info['name']
+    password = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
+    userExist = users.count_documents({"username": username} if username else {"email": email}) > 0
+    if userExist:
+        access_token = create_access_token(identity=username)
+        refresh_token = create_refresh_token(identity=username)
+        return jsonify({
+            'access_token':access_token,
+            'refresh_token':refresh_token
+        }), 200
+    user = {
+        "username":username,
+        "email":email,
+        "displayName": displayName,
+        "password": generate_password_hash(password),
+        "categories":DEFAULT_CATEGORIES,
+        "expenses":[],
+        "blockedTokens":[],
+        "createdDate": datetime.now().isoformat()
+    }
+    user_id = users.insert_one(user).inserted_id
+    access_token = create_access_token(identity=user_id)
+    refresh_token = create_refresh_token(identity=user_id)
+    return jsonify({
+        'access_token':access_token,
+        'refresh_token':refresh_token
+    }), 200
+
+    return jsonify({"msg": "Auth Success"}), 201
 
 @app.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
@@ -93,10 +165,10 @@ def logout():
     if not verify_token(current_user, access_jti):
         return jsonify({"msg": "Token has been revoked"}), 401
     users.update_one(
-        {"username": current_user},
+        {"_id": current_user},
         {"$push": {"blockedTokens": access_jti}}
     )
-    return jsonify(msg=f"Refresh token for user {current_user} has been successfully revoked"), 200
+    return jsonify(msg=f"Refresh token revoked"), 200
 
 @app.route('/logout/refresh', methods=['POST'])
 @jwt_required(refresh=True)
@@ -106,7 +178,7 @@ def logout_refresh():
     if not verify_token(current_user, refresh):
         return jsonify({"msg": "Token has been revoked"}), 401
     users.update_one(
-        {"username": current_user},
+        {"_id": current_user},
         {"$push": {"blockedTokens": refresh_jti}}
     )
     return jsonify(msg=f"Refresh token for user {current_user} has been successfully revoked"), 200
@@ -167,7 +239,7 @@ def addExpense():
         "date": date 
     }
     users.update_one(
-        { "username": current_user },  
+        { "_id": current_user },  
         { "$push": { "expenses": newExpense } }
     )
     return jsonify(status="expense record added"), 200
@@ -182,7 +254,7 @@ def deleteExpense():
     data = request.get_json()
     expenseId = data.get('_id')
     users.update_one(
-        { "username": current_user},
+        { "_id": current_user},
         { "$pull": { "expenses": { "_id": expenseId}}}
     )
     return jsonify(status="expense record deleted"), 200
@@ -196,7 +268,7 @@ def getAllCategories():
     if not verify_token(current_user, access_jti):
         return jsonify({"msg": "Token has been revoked"}), 401
     user_data = users.find_one(
-        {"username": current_user},
+        {"_id": current_user},
         {"categories": 1}
     )
     return jsonify({"categories": user_data.get("categories")}), 200
@@ -215,7 +287,7 @@ def addCategory():
         "date": datetime.now().isoformat()
     }
     users.update_one(
-        { "username": current_user },  
+        { "_id": current_user },  
         { "$push": { "categories": newCategory } }
     )
     return jsonify(status="new category added"), 200
@@ -230,7 +302,7 @@ def deleteCategory():
     data = request.get_json()
     categoryName = data.get('name')
     users.update_one(
-        { "username": current_user},
+        { "_id": current_user},
         { "$pull": { "categories": { "name": categoryName}}}
     )
     return jsonify(status="a category deleted"), 200
