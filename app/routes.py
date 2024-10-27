@@ -5,6 +5,7 @@ from flask_jwt_extended import create_access_token, create_refresh_token, jwt_re
 from app import app, users
 from app.utils import filter_by_date, filter_by_amount, build_pipeline, verify_token
 from app.default_categories import DEFAULT_CATEGORIES
+from bson import ObjectId
 import uuid, os, requests, random, string
 
 @app.route('/check-email', methods=['POST'])
@@ -68,8 +69,8 @@ def login():
         return jsonify({"msg": "Invalid user"}), 401
     if not check_password_hash(user["password"],password):
         return jsonify({"msg": "invalid password"}), 401
-    access_token = create_access_token(identity=user["_id"])
-    refresh_token = create_refresh_token(identity=user["_id"])
+    access_token = create_access_token(identity=str(user["_id"]))
+    refresh_token = create_refresh_token(identity=str(user["_id"]))
     return jsonify({
         'access_token':access_token,
         'refresh_token':refresh_token
@@ -137,22 +138,22 @@ def googleOauthCallback():
         "blockedTokens":[],
         "createdDate": datetime.now().isoformat()
     }
-    user_id = users.insert_one(user).inserted_id
-    access_token = create_access_token(identity=user_id)
-    refresh_token = create_refresh_token(identity=user_id)
+    users.insert_one(user)
+    access_token = create_access_token(identity=username)
+    refresh_token = create_refresh_token(identity=username)
     return jsonify({
         'access_token':access_token,
         'refresh_token':refresh_token
     }), 200
 
-    return jsonify({"msg": "Auth Success"}), 201
+    return jsonify({"msg": "User registered successfully"}), 201
 
 @app.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
 def refresh():
     current_user = get_jwt_identity()
     refresh_jti = get_jwt()['jti'] 
-    if not verify_token(current_user, refresh_jti):
+    if not verify_token(ObjectId(current_user), refresh_jti):
         return jsonify({"msg": "Token has been revoked"}), 401
     new_access_token = create_access_token(identity=current_user)
     return jsonify(access_token=new_access_token), 200
@@ -162,26 +163,26 @@ def refresh():
 def logout():
     current_user = get_jwt_identity()
     access_jti = get_jwt()['jti']
-    if not verify_token(current_user, access_jti):
+    if not verify_token(ObjectId(current_user), access_jti):
         return jsonify({"msg": "Token has been revoked"}), 401
     users.update_one(
-        {"_id": current_user},
+        {"_id": ObjectId(current_user)},
         {"$push": {"blockedTokens": access_jti}}
     )
-    return jsonify(msg=f"Refresh token revoked"), 200
+    return jsonify(msg=f"Refresh token has been successfully revoked"), 200
 
 @app.route('/logout/refresh', methods=['POST'])
 @jwt_required(refresh=True)
 def logout_refresh():
     current_user = get_jwt_identity()
     refresh_jti = get_jwt()['jti']
-    if not verify_token(current_user, refresh):
+    if not verify_token(ObjectId(current_user), refresh):
         return jsonify({"msg": "Token has been revoked"}), 401
     users.update_one(
-        {"_id": current_user},
+        {"_id": ObjectId(current_user)},
         {"$push": {"blockedTokens": refresh_jti}}
     )
-    return jsonify(msg=f"Refresh token for user {current_user} has been successfully revoked"), 200
+    return jsonify(msg=f"Refresh token revoked"), 200
 
 ################ EXPENSE ROUTE ################################################################
 @app.route('/expenses', methods=['GET'])
@@ -189,7 +190,7 @@ def logout_refresh():
 def getExpenses():
     current_user = get_jwt_identity()
     access_jti = get_jwt()['jti']  
-    if not verify_token(current_user, access_jti):
+    if not verify_token(ObjectId(current_user), access_jti):
         return jsonify({"msg": "Token has been revoked"}), 401
     # Pagination
     page = int(request.args.get('page',1))
@@ -213,7 +214,7 @@ def getExpenses():
     order = request.args.get('order', 'desc')
     sort_order = 1 if order == 'asc' else -1
     # Querying
-    pipeline = build_pipeline(current_user, "expenses", match_conditions, f"expenses.{sort_by}", sort_order, skip, limit) 
+    pipeline = build_pipeline(ObjectId(current_user), "expenses", match_conditions, f"expenses.{sort_by}", sort_order, skip, limit) 
     results = users.aggregate(pipeline)
     print(pipeline)
     expenses_list = [result['expenses'] for result in results]
@@ -224,7 +225,7 @@ def getExpenses():
 def addExpense():
     current_user = get_jwt_identity()
     access_jti = get_jwt()['jti']  
-    if not verify_token(current_user, access_jti):
+    if not verify_token(ObjectId(current_user), access_jti):
         return jsonify({"msg": "Token has been revoked"}), 401
     data = request.get_json()
     amount = data.get('amount')
@@ -239,7 +240,7 @@ def addExpense():
         "date": date 
     }
     users.update_one(
-        { "_id": current_user },  
+        { "_id": ObjectId(current_user) },  
         { "$push": { "expenses": newExpense } }
     )
     return jsonify(status="expense record added"), 200
@@ -249,12 +250,12 @@ def addExpense():
 def deleteExpense():
     current_user = get_jwt_identity()
     access_jti = get_jwt()['jti']  
-    if not verify_token(current_user, access_jti):
+    if not verify_token(ObjectId(current_user), access_jti):
         return jsonify({"msg": "Token has been revoked"}), 401
     data = request.get_json()
     expenseId = data.get('_id')
     users.update_one(
-        { "_id": current_user},
+        { "_id": ObjectId(current_user)},
         { "$pull": { "expenses": { "_id": expenseId}}}
     )
     return jsonify(status="expense record deleted"), 200
@@ -265,10 +266,10 @@ def deleteExpense():
 def getAllCategories():
     current_user = get_jwt_identity()
     access_jti = get_jwt()['jti']  
-    if not verify_token(current_user, access_jti):
+    if not verify_token(ObjectId(current_user), access_jti):
         return jsonify({"msg": "Token has been revoked"}), 401
     user_data = users.find_one(
-        {"_id": current_user},
+        {"_id": ObjectId(current_user)},
         {"categories": 1}
     )
     return jsonify({"categories": user_data.get("categories")}), 200
@@ -278,7 +279,7 @@ def getAllCategories():
 def addCategory():
     current_user = get_jwt_identity()
     access_jti = get_jwt()['jti']  
-    if not verify_token(current_user, access_jti):
+    if not verify_token(ObjectId(current_user), access_jti):
         return jsonify({"msg": "Token has been revoked"}), 401
     data = request.get_json()
     categoryName = data.get('name')
@@ -287,7 +288,7 @@ def addCategory():
         "date": datetime.now().isoformat()
     }
     users.update_one(
-        { "_id": current_user },  
+        { "_id": ObjectId(current_user) },  
         { "$push": { "categories": newCategory } }
     )
     return jsonify(status="new category added"), 200
@@ -297,12 +298,12 @@ def addCategory():
 def deleteCategory():
     current_user = get_jwt_identity()
     access_jti = get_jwt()['jti']  
-    if not verify_token(current_user, access_jti):
+    if not verify_token(ObjectId(current_user), access_jti):
         return jsonify({"msg": "Token has been revoked"}), 401
     data = request.get_json()
     categoryName = data.get('name')
     users.update_one(
-        { "_id": current_user},
+        { "_id": ObjectId(current_user)},
         { "$pull": { "categories": { "name": categoryName}}}
     )
     return jsonify(status="a category deleted"), 200

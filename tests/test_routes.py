@@ -98,7 +98,7 @@ def test_refresh_token(client, refresh_token_headers):
 def test_logout(client, auth_headers):
     response = client.post('/logout', headers=auth_headers)
     assert response.status_code == 200
-    assert response.get_json()['msg'] == f"Refresh token for user {test_user['username']} has been successfully revoked"
+    assert response.get_json()['msg'] == f"Refresh token has been successfully revoked"
 
     # Test that the token is invalid after logout
     response = client.get('/expenses', headers=auth_headers)
