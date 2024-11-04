@@ -265,6 +265,22 @@ This project is a simple **Expense Tracker API** built with **Flask**. It suppor
     }
     ```
 
+- **Add Category**  
+  **POST** `/categories`
+  - Request Body:
+    ```json
+    {
+      "name": "Category Name"
+    }
+    ```
+  - Requires: Access Token
+  - Response:
+    ```json
+    {
+      "status": "category deleted"
+    }
+    ```
+
 - **Delete Category**  
   **DELETE** `/categories`
   - Request Body:
