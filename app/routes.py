@@ -307,3 +307,8 @@ def deleteCategory():
         { "$pull": { "categories": { "name": categoryName}}}
     )
     return jsonify(status="a category deleted"), 200
+
+
+@app.route('/', methods=['GET'])
+def testServer():
+    return "<h2>Hello World</h2>"

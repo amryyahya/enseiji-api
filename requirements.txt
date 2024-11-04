@@ -4,3 +4,5 @@ flask_pymongo
 pytest
 pytest-flask
 python-dotenv
+requests
+flask-cors
