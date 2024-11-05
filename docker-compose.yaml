@@ -3,12 +3,14 @@ version: "3.8"
 services:
   app:
     image: python:3.11-slim
-    container_name: python_app
+    container_name: expense-tracker-api
     working_dir: /app
     volumes:
       - ./:/app
     environment:
       - .env
+    ports:
+      - "5000:5000"
     depends_on:
       - mongo
     command: bash -c "pip install -r requirements.txt && python run.py"
