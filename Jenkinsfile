@@ -1,32 +1,56 @@
 pipeline {
-    agent any
-
+    agent {
+        docker { 
+            image 'docker:stable-dind' 
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
+    environment {
+        COMPOSE_PROJECT_NAME = 'expense_tracker'  
+    }
     stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
         stage('Build') {
             steps {
-                echo 'App is built'
+                script {
+                    sh 'docker-compose -f docker-compose.yml build'
+                }
             }
         }
-
-        stage('Test') {
+        
+        stage('Run Tests') {
             steps {
-                echo 'Running tests'
+                // script {
+                //     echo 'testing' 
+                // }
+                echo 'testing'
             }
         }
-
+        
         stage('Deploy') {
             steps {
-                echo 'App is deployed'
+                script {
+                    sh 'docker-compose -f docker-compose.yml up -d'
+                }
             }
         }
     }
-
     post {
-        success {
-            echo 'Pipeline completed successfully.'
+        always {
+            script {
+                sh 'docker-compose -f docker-compose.yml down'
+            }
         }
         failure {
-            echo 'Pipeline failed!'
+            echo 'Build failed.'
+        }
+        success {
+            echo 'Build succeeded!'
         }
     }
 }
