@@ -311,4 +311,4 @@ def deleteCategory():
 
 @app.route('/', methods=['GET'])
 def testServer():
-    return "<h2>Hello World</h2>"
+    return "<h2>Hello World, Hehe</h2>"
