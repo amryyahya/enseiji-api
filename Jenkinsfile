@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'docker-agent' }
+    agent any
     environment {
         COMPOSE_PROJECT_NAME = 'expense_tracker'  
     }
