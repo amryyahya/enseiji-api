@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker { 
-            image 'docker:stable-dind' 
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent { label 'docker-agent' }
     environment {
         COMPOSE_PROJECT_NAME = 'expense_tracker'  
     }
