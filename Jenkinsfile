@@ -15,18 +15,18 @@ pipeline {
             }
         }
         
-        stage('Test') {
-            steps {
-                script {
-                    sh 'docker exec -it expense-tracker-api env PYTHONPATH=/app pytest' 
-                }
-            }
-        }
-        
         stage('Deploy') {
             steps {
                 script {
                     sh 'docker compose -f docker-compose.yaml up -d'
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                script {
+                    sh 'docker exec -it expense-tracker-api env PYTHONPATH=/app pytest' 
                 }
             }
         }
