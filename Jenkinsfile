@@ -26,7 +26,7 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    sh 'docker exec -it expense-tracker-api env PYTHONPATH=/app pytest' 
+                    sh 'docker exec -i expense-tracker-api env PYTHONPATH=/app pytest' 
                 }
             }
         }
