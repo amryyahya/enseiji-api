@@ -10,7 +10,7 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    sh 'docker compose -f docker-compose.yaml build'
+                    sh 'docker compose build'
                 }
             }
         }
@@ -18,7 +18,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    sh 'docker compose -f docker-compose.yaml up -d'
+                    sh 'docker compose up -d'
                 }
             }
         }
@@ -34,7 +34,7 @@ pipeline {
     post {
         always {
             script {
-                sh 'docker compose -f docker-compose.yaml down'
+                sh 'docker compose down'
             }
         }
         failure {
