@@ -13,6 +13,7 @@ pipeline {
         stage('Build') {
             steps {
                 script {
+                    sh 'ls -l;pwd'
                     sh 'docker compose -f docker-compose.yml build'
                 }
             }
