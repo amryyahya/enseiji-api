@@ -1,8 +1,5 @@
 pipeline {
     agent any
-    environment {
-        COMPOSE_PROJECT_NAME = 'expense_tracker'  
-    }
     stages {
         stage('Checkout') {
             steps {
@@ -18,12 +15,11 @@ pipeline {
             }
         }
         
-        stage('Run Tests') {
+        stage('Tests') {
             steps {
-                // script {
-                //     echo 'testing' 
-                // }
-                echo 'testing'
+                script {
+                    sh 'docker exec -it expense-tracker-api env PYTHONPATH=/app pytest' 
+                }
             }
         }
         
