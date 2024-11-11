@@ -1,4 +1,4 @@
-# Expense Tracker API
+# En Seiji - Expense Tracker API
 
 This project is a simple **Expense Tracker API** built with **Flask**. It supports user authentication, including registration, login, and token-based authorization with JWT. Users can manage their expenses, filter by dates, categories, and amounts, as well as manage categories.
 
