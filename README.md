@@ -100,6 +100,21 @@ This project is a simple **Expense Tracker API** built with **Flask**. It suppor
       "refresh_token": "your-refresh-token"
     }
     ```
+- **Oauth**  
+  **GET** `/auth/google`
+  - Redirects the user to the Google authentication page, where they can authorize the application to access their Google profile and email information
+  **GET** `/auth/callback`
+  - Handles the callback from Google with an authorization code.
+  - Exchanges the code for an access token, retrieves user information, and registers or logs in the user
+  - Requires: Authorization code from Google
+  - Response:
+    ```json
+    {
+      "access_token": "jwt_access_token",
+      "refresh_token": "jwt_refresh_token"
+    }
+    ```
+
 
 - **Refresh Token**  
   **POST** `/refresh`
