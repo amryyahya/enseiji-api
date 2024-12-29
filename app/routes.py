@@ -50,6 +50,7 @@ def register():
         "blockedTokens":[],
         "createdDate": datetime.now().isoformat()
     }
+    
     users.insert_one(user)
     return jsonify({"msg": "User registered successfully"}), 201
 
@@ -97,6 +98,7 @@ def googleOauthCallback():
     CLIENT_ID = os.getenv("CLIENT_ID")
     CLIENT_SECRET = os.getenv("CLIENT_SECRET")
     REDIRECT_URI = os.getenv("REDIRECT_URI")
+    FRONTEND_URL = os.getenv("FRONTEND_URL")  
     AUTH_URL = "https://accounts.google.com/o/oauth2/auth"
     TOKEN_URL = "https://oauth2.googleapis.com/token"
     USER_INFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
@@ -140,13 +142,7 @@ def googleOauthCallback():
     }
     users.insert_one(user)
     access_token = create_access_token(identity=username)
-    refresh_token = create_refresh_token(identity=username)
-    return jsonify({
-        'access_token':access_token,
-        'refresh_token':refresh_token
-    }), 200
-
-    return jsonify({"msg": "User registered successfully"}), 201
+    return redirect(f"{FRONTEND_URL}/auth-success?access_token={access_token})
 
 @app.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
