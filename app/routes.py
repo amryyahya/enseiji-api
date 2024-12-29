@@ -77,7 +77,7 @@ def login():
         'refresh_token':refresh_token
     }), 200
 
-@app.route('/auth/google')
+@app.route('/oauth/google')
 def googleOauth():
     CLIENT_ID = os.getenv("CLIENT_ID")
     CLIENT_SECRET = os.getenv("CLIENT_SECRET")
@@ -93,7 +93,7 @@ def googleOauth():
     )
     return redirect(google_auth_url)
 
-@app.route('/auth/callback')
+@app.route('/oauth/callback')
 def googleOauthCallback():
     CLIENT_ID = os.getenv("CLIENT_ID")
     CLIENT_SECRET = os.getenv("CLIENT_SECRET")
@@ -141,8 +141,26 @@ def googleOauthCallback():
         "createdDate": datetime.now().isoformat()
     }
     users.insert_one(user)
-    access_token = create_access_token(identity=username)
-    return redirect(f"{FRONTEND_URL}/auth-success?access_token={access_token})
+    refresh_token = create_refresh_token(identity=username)
+    return redirect(f"{FRONTEND_URL}/auth-success?refresh_token={refresh_token}")
+
+@app.route('/oauth/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh():
+    current_user = get_jwt_identity()
+    refresh_jti = get_jwt()['jti']
+    users.update_one(
+        {"_id": ObjectId(current_user)},
+        {"$push": {"blockedTokens": refresh_jti}}
+    )
+    if not verify_token(ObjectId(current_user), refresh_jti):
+        return jsonify({"msg": "Token has been revoked"}), 401
+    new_access_token = create_access_token(identity=current_user)
+    new_refresh_token = create_refresh_token(identity=current_user)
+    return jsonify({
+        'access_token':new_access_token,
+        'refresh_token':new_access_token
+    }), 200
 
 @app.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
