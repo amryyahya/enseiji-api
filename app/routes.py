@@ -146,7 +146,7 @@ def googleOauthCallback():
 
 @app.route('/oauth/refresh', methods=['POST'])
 @jwt_required(refresh=True)
-def refresh():
+def refreshOauth():
     current_user = get_jwt_identity()
     refresh_jti = get_jwt()['jti']
     users.update_one(
