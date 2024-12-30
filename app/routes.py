@@ -122,9 +122,12 @@ def googleOauthCallback():
     email = user_info['email']
     displayName = user_info['name']
     password = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
-    userExist = users.count_documents({"username": username} if username else {"email": email}) > 0
-    if userExist:
-        refresh_token = create_refresh_token(identity=username)
+    user = users.find_one(
+        {"username": username} if username else {"email": email},
+        {"_id": 1, "password": 1}
+    )
+    if user:
+        refresh_token = create_refresh_token(identity=str(user["_id"]))
         return redirect(f"{FRONTEND_URL}/auth-success?refresh_token={refresh_token}")
     user = {
         "username":username,
@@ -136,8 +139,9 @@ def googleOauthCallback():
         "blockedTokens":[],
         "createdDate": datetime.now().isoformat()
     }
-    users.insert_one(user)
-    refresh_token = create_refresh_token(identity=username)
+    result = users.insert_one(user)
+    user_id = result.inserted_id
+    refresh_token = create_refresh_token(identity=str(user_id))
     return redirect(f"{FRONTEND_URL}/auth-success?refresh_token={refresh_token}")
 
 @app.route('/oauth/refresh', methods=['POST'])
