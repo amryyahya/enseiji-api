@@ -93,7 +93,7 @@ def googleOauth():
     )
     return redirect(google_auth_url)
 
-@app.route('/oauth/callback')
+@app.route('/auth/callback')
 def googleOauthCallback():
     CLIENT_ID = os.getenv("CLIENT_ID")
     CLIENT_SECRET = os.getenv("CLIENT_SECRET")
