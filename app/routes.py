@@ -149,17 +149,17 @@ def googleOauthCallback():
 def refreshOauth():
     current_user = get_jwt_identity()
     refresh_jti = get_jwt()['jti']
+    if not verify_token(ObjectId(current_user), refresh_jti):
+        return jsonify({"msg": "Token has been revoked"}), 401
     users.update_one(
         {"_id": ObjectId(current_user)},
         {"$push": {"blockedTokens": refresh_jti}}
     )
-    if not verify_token(ObjectId(current_user), refresh_jti):
-        return jsonify({"msg": "Token has been revoked"}), 401
     new_access_token = create_access_token(identity=current_user)
     new_refresh_token = create_refresh_token(identity=current_user)
     return jsonify({
         'access_token':new_access_token,
-        'refresh_token':new_access_token
+        'refresh_token':new_refresh_token
     }), 200
 
 @app.route('/refresh', methods=['POST'])
