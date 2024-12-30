@@ -124,12 +124,8 @@ def googleOauthCallback():
     password = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
     userExist = users.count_documents({"username": username} if username else {"email": email}) > 0
     if userExist:
-        access_token = create_access_token(identity=username)
         refresh_token = create_refresh_token(identity=username)
-        return jsonify({
-            'access_token':access_token,
-            'refresh_token':refresh_token
-        }), 200
+        return redirect(f"{FRONTEND_URL}/auth-success?refresh_token={refresh_token}")
     user = {
         "username":username,
         "email":email,
